@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
@@ -8,10 +9,9 @@ public class PlayerMovement : MonoBehaviour
     private BoxCollider2D boxCollider;
 
     [Header("Movement Variables")]
-    [SerializeField] private float _movementAcceleration = 10f;
-    [SerializeField] private float _maxMoveSpeed = 12f;
-    [SerializeField] private float _groundLinearDrag = 10f;
-    private float _horizontalDirection;
+    [SerializeField] private float _movementAcceleration = 2f;
+    [SerializeField] private float _walkSpeed = 6f;
+    [SerializeField] private float _currentMovementLerpSpeed = 100f;
     private bool _changingDirection => (_rb.velocity.x > 0f && _horizontalDirection < 0f) || (_rb.velocity.x < 0f && _horizontalDirection > 0f);
 
     [Header("Layer Masks")]
@@ -19,84 +19,243 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Jump Variables")]
     [SerializeField] private float _jumpForce = 20f;
-    [SerializeField] private float _airLinearDrag = 2.5f;
-    [SerializeField] private float _fallMultiplier = 8f;
-    [SerializeField] private float _lowJumpFallMultiplier = 10f;
+    [SerializeField] private float _fallMultiplier = 6f;
+    [SerializeField] private float _jumpVelocityFalloff = 8f;
     [SerializeField] private float _hangTime = 0.1f;
     private float _hangTimeCounter;
-    [SerializeField] private float _jumpBufferLength = 0.1f;
+    [SerializeField] private float _jumpBufferLength = 0.5f;
     private float _jumpBufferCounter;
     [SerializeField] private bool _canJump => _jumpBufferCounter > 0f && _hangTimeCounter > 0f;
+    [SerializeField] private float _coyoteTime = 0.2f;
+    private float _timeLeftGrounded = -10;
+    private float _timeLastWallJumped;
+    private bool _hasJumped;
+    [SerializeField] private Transform _jumpLaunchPoof;
 
     [Header("Ground Collision Variables")]
-    // [SerializeField] private float _groundRayCastLength;
     private bool _onGround;
+    private bool IsGrounded;
+    private LayerMask _groundMask;
+    [SerializeField] private float _grounderOffset = -1, _grounderRadius = 0.2f;
 
+    [Header("Wall Collision Variables")]
+    [SerializeField] private float _wallCheckOffset = 0.5f, _wallCheckRadius = 0.05f;
+    private bool _isAgainstLeftWall, _isAgainstRightWall, _pushingLeftWall, _pushingRightWall;
+    private readonly Collider[] _ground = new Collider[1];
+    private readonly Collider[] _leftWall = new Collider[1];
+    private readonly Collider[] _rightWall = new Collider[1];
+    
+    [Header("Wall Slide Variables")]
+    [SerializeField] private float _slideSpeed = 1;
+    private bool _wallSliding;
+
+    [Header("Wall Grab")] [SerializeField]
+    private bool _grabbing;
+
+    [Header("Animation Variables")]
+    private Animator _anim;
+
+    [Header("Dash Variables")] 
+    [SerializeField] private float _dashSpeed = 15;
+    [SerializeField] private float _dashLength = 0.2f;
+    [SerializeField] private ParticleSystem _dashParticles;
+    [SerializeField] private Transform _dashRing;
+    [SerializeField] private ParticleSystem _dashVisual;
+    private bool _hasDashed;
+    private bool _dashing;
+    private float _timeStartedDash;
+    private Vector3 _dashDir;
+
+
+    [SerializeField] private float _wallJumpLock = 0.25f;
+    [SerializeField] private float _wallJumpMovementLerp = 5;
+
+
+    [Header("Input Variables")]
+    private float _horizontalDirection;
+    private float _verticalDirection;
+    private float _horizontalRawDirection;
+    private float _verticalRawDirection;
+    private bool _facingLeft => (transform.localScale.x < 0f);
+
+    public static event Action OnStartDashing, OnStopDashing;
+    
     private void Awake()
     {
         _rb = GetComponent<Rigidbody2D>();
+        _rb.gravityScale = 0f; 
         objectScale = transform.localScale;
         boxCollider = GetComponent<BoxCollider2D>();
+        _anim = GetComponent<Animator>();
     }
 
     private void Update()
     {
-        // horizontal = Input.GetAxis("Horizontal");
-        // vertical = Input.GetAxis("Vertical");
-        // _rb.velocity = new Vector2(horizontal * sprintPower, _rb.velocity.y);
         _horizontalDirection = GetInput().x;
-        if(Input.GetButton("Jump")){
+        _verticalDirection = GetInput().y;
+        _horizontalRawDirection = (int) Input.GetAxisRaw("Horizontal");
+        _verticalRawDirection = (int) Input.GetAxisRaw("Vertical");
+        
+        if (Input.GetButton("Jump"))
+        {
             _jumpBufferCounter = _jumpBufferLength;
-        } else {
+        }
+        else
+        {
             _jumpBufferCounter -= Time.deltaTime;
         }
-        if(_canJump) Jump();
     }
 
-    private void FixedUpdate() {
+    private void FixedUpdate()
+    {
         MoveCharacter();
         Flip();
-        ApplyGroundLinearDrag();  
-        if(!isGrounded()){
-            ApplyAirLinearDrag();      
+        HandleDashing();   
+        HandleGrounding();
+        HandleWallGrab();
+        // HandleWallSlide();
+        HandleJumping();
+
+        if (!isGrounded())
+        {
             _hangTimeCounter -= Time.deltaTime;
-        } else {
+        }
+        else
+        {
+            _hasDashed = false;
             _hangTimeCounter = _hangTime;
         }
-        Fall();
     }
 
     private static Vector2 GetInput()
     {
-        return new Vector2(Input.GetAxis("Horizontal"),Input.GetAxis("Vertical"));
+        return new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
     }
 
-    private void MoveCharacter()
+    private void OnDrawGizmos()
     {
-        _rb.AddForce(new Vector2 (_horizontalDirection * _movementAcceleration, 0f));
-
-        if(Mathf.Abs(_rb.velocity.x) > _maxMoveSpeed)
-            _rb.velocity = new Vector2(Mathf.Sign(_rb.velocity.x) * _maxMoveSpeed, _rb.velocity.y);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(-_wallCheckOffset, 0), _wallCheckRadius);
+        Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(_wallCheckOffset, 0), _wallCheckRadius);
     }
 
-    private void ApplyGroundLinearDrag()
+    private void HandleGrounding() 
     {
-        if(Mathf.Abs(_horizontalDirection) < 0.4f || _changingDirection)
-            _rb.drag = _groundLinearDrag;
-        else
-            _rb.drag = 0f;
-    }
+        // Grounder
+        var grounded = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(0, _grounderOffset), _grounderRadius, _ground, _groundMask) > 0;
 
-    private void ApplyAirLinearDrag()
+        if (isGrounded() == true) {
+            IsGrounded = true;
+            _hasDashed = false;
+            _hasJumped = false;
+            _currentMovementLerpSpeed = 100;
+            // _anim.SetBool("Grounded", true);
+            // transform.SetParent(_ground[0].transform);
+        }
+        else if (isGrounded() == false) {
+            IsGrounded = false;
+            _timeLeftGrounded = Time.time;
+            // _anim.SetBool("Grounded", false);
+        }
+        Debug.Log("L: "+_isAgainstLeftWall);
+        Debug.Log("R: "+_isAgainstRightWall);
+        // Wall detection
+        _isAgainstLeftWall = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(-_wallCheckOffset, 0), _wallCheckRadius, _leftWall, _groundMask) > 0;
+        _isAgainstRightWall = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(_wallCheckOffset, 0), _wallCheckRadius, _rightWall, _groundMask) > 0;
+        _pushingLeftWall = _isAgainstLeftWall && _horizontalDirection < 0;
+        _pushingRightWall = _isAgainstRightWall && _horizontalDirection > 0;
+    }
+    
+    private void HandleJumping()
     {
-        _rb.drag = _airLinearDrag;
+        if (_dashing) return;
+        if (Input.GetButton("Jump"))
+        {
+            if (_grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall)))
+            {
+            // Debug.Log("TRIED: _grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall))");
+                _timeLastWallJumped = Time.time;
+                _currentMovementLerpSpeed = _wallJumpMovementLerp;
+                ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce : -_jumpForce, _jumpForce)); // Wall jump
+            }
+            else if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime))
+            {
+            // Debug.Log("TRIED 2 : _hasjumped):" +_hasJumped);
+                if(_hasJumped == false){
+                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce)); // Ground jump
+                }
+            }
+        }
+
+        void ExecuteJump(Vector3 dir)
+        {
+            _rb.velocity = dir;
+            // _anim.SetTrigger("Jump");
+            _hasJumped = true;
+        }
+
+        // Fall faster and allow small jumps. _jumpVelocityFalloff is the point at which we start adding extra gravity. Using 0 causes floating
+        if (_rb.velocity.y < _jumpVelocityFalloff || (_rb.velocity.y > 0 && !Input.GetKey(KeyCode.C)))
+            _rb.velocity += _fallMultiplier * Physics.gravity.y * Vector2.up * Time.deltaTime;
     }
 
-    // private void OnCollisionEnter2D(Collision2D collision)
-    // {
-    //     if(collision.gameObject.tag == "Ground")
-    //         airborne = true;
-    // }
+    private void HandleDashing() 
+    {
+        if (Input.GetButton("Dash") && !_hasDashed) {
+            _dashDir = new Vector3(_horizontalRawDirection, _verticalRawDirection).normalized;
+            if (_dashDir == Vector3.zero) _dashDir = _facingLeft ? Vector2.left : Vector2.right;
+            _dashing = true;
+            _hasDashed = true;
+            _timeStartedDash = Time.time;
+            _rb.gravityScale = 0f;
+        }
+
+        if (_dashing) {
+            _rb.velocity = _dashDir * _dashSpeed;
+
+            if (Time.time >= _timeStartedDash + _dashLength) {
+                // _dashParticles.Stop();
+                _dashing = false;
+                // Clamp the velocity so they don't keep shooting off
+                _rb.velocity = new Vector2(_rb.velocity.x, _rb.velocity.y > 3 ? 2 : _rb.velocity.y);
+                _rb.gravityScale = 1f;
+                if (isGrounded()) _hasDashed = false;
+            }
+        }
+    }
+    
+    private void HandleWallSlide() {
+        var sliding = _pushingLeftWall || _pushingRightWall;
+
+        if (sliding && !_wallSliding) {
+            transform.SetParent(_pushingLeftWall ? _leftWall[0].transform : _rightWall[0].transform);
+            _wallSliding = true;
+
+            // Don't add sliding until actually falling or it'll prevent jumping against a wall
+            if (_rb.velocity.y < 0) _rb.velocity = new Vector3(0, -_slideSpeed);
+        }
+        else if (!sliding && _wallSliding && !_grabbing) {
+            transform.SetParent(null);
+            _wallSliding = false;
+        }
+    }
+
+    private void HandleWallGrab() {
+        // I added wallJumpLock but I honestly can't remember why and I'm too scared to remove it...
+        var grabbing = (_isAgainstLeftWall || _isAgainstRightWall) && Time.time > _timeLastWallJumped + _wallJumpLock;
+        // Debug.log("LEFT:"+_isAgainstLeftWall+ "RIGHT:" + _isAgainstRightWall)
+        _rb.gravityScale = !_grabbing && !isGrounded() ? 1f : 0f;
+        if (grabbing && !_grabbing) {
+            _grabbing = true;
+        }
+        else if (!grabbing && _grabbing) {
+            _grabbing = false;
+        }
+
+        if (_grabbing) _rb.velocity = new Vector3(0, _verticalRawDirection * _slideSpeed * (_verticalRawDirection < 0 ? 1 : 0.8f));
+
+        // _anim.SetBool("Climbing", _wallSliding || _grabbing);
+    }
 
     private bool isGrounded()
     {
@@ -105,35 +264,55 @@ public class PlayerMovement : MonoBehaviour
         return raycastHit.collider != null;
     }
 
-    // private bool isGrounded(){
-    //     RaycastHit2D raycastHit = Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.bounds.size, 0, Vector2.down, 0.1f, groundLayer);
-    //     return raycastHit.collider != null;
-    // }
+    private void MoveCharacter()
+    {
+        // Slowly release control after wall jump
+        _currentMovementLerpSpeed = Mathf.MoveTowards(_currentMovementLerpSpeed, 100, _wallJumpMovementLerp * Time.deltaTime);
+
+        if (_dashing) return;
+
+        var acceleration = isGrounded() ? _movementAcceleration : _movementAcceleration * 0.5f;
+
+        if (_horizontalDirection < 0)
+        {
+            if (_rb.velocity.x > 0) _horizontalDirection = 0;
+            _horizontalDirection = Mathf.MoveTowards(_horizontalDirection, -1, acceleration * Time.deltaTime);
+        }
+        else if (_horizontalDirection > 0)
+        {
+            if (_rb.velocity.x < 0) _horizontalDirection = 0;
+            _horizontalDirection = Mathf.MoveTowards(_horizontalDirection, 1, acceleration * Time.deltaTime);
+        }
+        else
+        {
+            _horizontalDirection = Mathf.MoveTowards(_horizontalDirection, 0, acceleration * 2 * Time.deltaTime);
+        }
+
+        var idealVel = new Vector3(_horizontalDirection * _walkSpeed, _rb.velocity.y);
+        _rb.velocity = Vector3.MoveTowards(_rb.velocity, idealVel, _currentMovementLerpSpeed * Time.deltaTime);
+
+        // _anim.SetBool("isRunning", _horizontalRawDirection != 0 && isGrounded());
+    }
 
     private void Fall()
     {
-        if(_rb.velocity.y < 0){
-            // _rb.gravityScale = _fallMultiplier;
-            _rb.velocity += Vector2.up * Physics2D.gravity.y * (_fallMultiplier - 1 ) * Time.deltaTime;
-        }
-        else if(_rb.velocity.y > 0 && !Input.GetButton("Jump")){
-            // _rb.gravityScale = _lowJumpFallMultiplier;
-            _rb.velocity += Vector2.up * Physics2D.gravity.y * (_fallMultiplier - 1) * Time.deltaTime;
+        // Fall faster and allow small jumps. _jumpVelocityFalloff is the point at which we start adding extra gravity. Using 0 causes floating
+        if (_rb.velocity.y < _jumpVelocityFalloff || _rb.velocity.y > 0){
+            _rb.velocity += _fallMultiplier * Physics.gravity.y * Vector2.up * Time.deltaTime;
         }
     }
 
     private void Flip()
     {
-        if(_horizontalDirection > 0.01f)
-            transform.localScale = new Vector3(objectScale.x,objectScale.y,objectScale.z);
-        else if(_horizontalDirection < -0.01f)
-            transform.localScale = new Vector3(-objectScale.x,objectScale.y,objectScale.z);
+        if (_horizontalDirection > 0.01f)
+            transform.localScale = new Vector3(objectScale.x, objectScale.y, objectScale.z);
+        else if (_horizontalDirection < -0.01f)
+            transform.localScale = new Vector3(-objectScale.x, objectScale.y, objectScale.z);
     }
 
     private void Jump()
     {
         _rb.velocity = new Vector2(_rb.velocity.x, 0f);
-        //_rb.velocity += Vector2.up * _jumpForce;
         _rb.AddForce(Vector2.up * _jumpForce, ForceMode2D.Impulse);
         _hangTimeCounter = 0f;
         _jumpBufferCounter = 0f;
