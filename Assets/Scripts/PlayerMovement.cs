@@ -175,6 +175,9 @@ public class PlayerMovement : MonoBehaviour
             IsGrounded = false;
             _timeLeftGrounded = Time.time;
             // _anim.SetBool("Grounded", false);
+            if(_isAgainstRightWall || _isAgainstLeftWall){
+                _dashing = false;
+            }
         }
         // Wall detection
         // var leftWallHits = Physics2D.OverlapCircleAll(transform.position + new Vector3(-_wallCheckOffset, 0), _wallCheckRadius, _groundMask);
@@ -201,7 +204,7 @@ public class PlayerMovement : MonoBehaviour
     
     private void HandleJumping()
     {
-        if (_dashing) return;
+        if (_dashing) return; //11
         if (Input.GetButton("Jump"))
         {
             if (_grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall)))
