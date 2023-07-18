@@ -10,17 +10,18 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement Variables")]
     [SerializeField] private float _movementAcceleration = 2f;
-    [SerializeField] private float _walkSpeed = 6f;
+    [SerializeField] private float _walkSpeed = 7f;
     [SerializeField] private float _currentMovementLerpSpeed = 100f;
     private bool _changingDirection => (_rb.velocity.x > 0f && _horizontalDirection < 0f) || (_rb.velocity.x < 0f && _horizontalDirection > 0f);
 
     [Header("Layer Masks")]
     [SerializeField] private LayerMask _groundLayer;
+    [SerializeField] private LayerMask _wallLayer;
 
     [Header("Jump Variables")]
-    [SerializeField] private float _jumpForce = 20f;
-    [SerializeField] private float _fallMultiplier = 6f;
-    [SerializeField] private float _jumpVelocityFalloff = 8f;
+    [SerializeField] private float _jumpForce = 23f;
+    [SerializeField] private float _fallMultiplier = 7f;
+    [SerializeField] private float _jumpVelocityFalloff = 7f;
     [SerializeField] private float _hangTime = 0.1f;
     private float _hangTimeCounter;
     [SerializeField] private float _jumpBufferLength = 0.5f;
@@ -39,7 +40,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float _grounderOffset = -1, _grounderRadius = 0.2f;
 
     [Header("Wall Collision Variables")]
-    [SerializeField] private float _wallCheckOffset = 0.5f, _wallCheckRadius = 0.05f;
+    [SerializeField] private float _wallCheckOffset = 0.3f, _wallCheckRadius = 0.1f;
     private bool _isAgainstLeftWall, _isAgainstRightWall, _pushingLeftWall, _pushingRightWall;
     private readonly Collider[] _ground = new Collider[1];
     private readonly Collider[] _leftWall = new Collider[1];
@@ -47,7 +48,7 @@ public class PlayerMovement : MonoBehaviour
     
     [Header("Wall Slide Variables")]
     [SerializeField] private float _slideSpeed = 1;
-    private bool _wallSliding;
+    [SerializeField] private bool _wallSliding;
 
     [Header("Wall Grab")] [SerializeField]
     private bool _grabbing;
@@ -68,7 +69,7 @@ public class PlayerMovement : MonoBehaviour
 
 
     [SerializeField] private float _wallJumpLock = 0.25f;
-    [SerializeField] private float _wallJumpMovementLerp = 5;
+    [SerializeField] private float _wallJumpMovementLerp = 2;
 
 
     [Header("Input Variables")]
@@ -87,6 +88,8 @@ public class PlayerMovement : MonoBehaviour
         objectScale = transform.localScale;
         boxCollider = GetComponent<BoxCollider2D>();
         _anim = GetComponent<Animator>();
+        _groundLayer = LayerMask.GetMask("Ground");
+        _wallLayer = LayerMask.GetMask("Wall");
     }
 
     private void Update()
@@ -96,8 +99,9 @@ public class PlayerMovement : MonoBehaviour
         _horizontalRawDirection = (int) Input.GetAxisRaw("Horizontal");
         _verticalRawDirection = (int) Input.GetAxisRaw("Vertical");
         
-        if (Input.GetButton("Jump"))
+        if (Input.GetButton("Jump") || (Input.GetButton("Jump_W") && !_grabbing))
         {
+            // Debug.Log("buffering");
             _jumpBufferCounter = _jumpBufferLength;
         }
         else
@@ -134,16 +138,31 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+        // Gizmos.color = Color.red;
+        // Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(-_wallCheckOffset, 0), _wallCheckRadius);
+        // Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(_wallCheckOffset, 0), _wallCheckRadius);
+
+        // Draw raycast for left wall
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(-_wallCheckOffset, 0), _wallCheckRadius);
-        Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(_wallCheckOffset, 0), _wallCheckRadius);
+        Vector2 originLeft = transform.position;
+        Vector2 directionLeft = Vector2.left;
+        float distanceLeft = _wallCheckRadius;
+        Gizmos.DrawRay(originLeft, directionLeft * distanceLeft);
+
+        // Draw raycast for right wall
+        Gizmos.color = Color.blue;
+        Vector2 originRight = transform.position;
+        Vector2 directionRight = Vector2.right;
+        float distanceRight = _wallCheckRadius;
+        Gizmos.DrawRay(originRight, directionRight * distanceRight);
     }
 
     private void HandleGrounding() 
     {
         // Grounder
         var grounded = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(0, _grounderOffset), _grounderRadius, _ground, _groundMask) > 0;
-
+        if(grounded)
+            Debug.Log("grounded : "+grounded);
         if (isGrounded() == true) {
             IsGrounded = true;
             _hasDashed = false;
@@ -157,13 +176,27 @@ public class PlayerMovement : MonoBehaviour
             _timeLeftGrounded = Time.time;
             // _anim.SetBool("Grounded", false);
         }
-        Debug.Log("L: "+_isAgainstLeftWall);
-        Debug.Log("R: "+_isAgainstRightWall);
         // Wall detection
-        _isAgainstLeftWall = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(-_wallCheckOffset, 0), _wallCheckRadius, _leftWall, _groundMask) > 0;
-        _isAgainstRightWall = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(_wallCheckOffset, 0), _wallCheckRadius, _rightWall, _groundMask) > 0;
+        // var leftWallHits = Physics2D.OverlapCircleAll(transform.position + new Vector3(-_wallCheckOffset, 0), _wallCheckRadius, _groundMask);
+        // var rightWallHits = Physics2D.OverlapCircleAll(transform.position + new Vector3(_wallCheckOffset, 0), _wallCheckRadius, _groundMask);
+        // if(IsWallToLeft() || IsWallToRight())
+        //     Debug.Log("wall hit:" + IsWallToLeft() + " " +  IsWallToRight());
+        _isAgainstLeftWall = IsWallToLeft();
+        _isAgainstRightWall = IsWallToRight();
         _pushingLeftWall = _isAgainstLeftWall && _horizontalDirection < 0;
         _pushingRightWall = _isAgainstRightWall && _horizontalDirection > 0;
+    }
+
+    private bool IsWallToLeft()
+    {
+        RaycastHit2D raycastHit = Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.bounds.size, 0, Vector2.left, _wallCheckRadius, _wallLayer);
+        return raycastHit.collider != null;
+    }
+
+    private bool IsWallToRight()
+    {
+        RaycastHit2D raycastHit = Physics2D.BoxCast(boxCollider.bounds.center, boxCollider.bounds.size, 0, Vector2.right, _wallCheckRadius, _wallLayer);
+        return raycastHit.collider != null;
     }
     
     private void HandleJumping()
@@ -176,11 +209,19 @@ public class PlayerMovement : MonoBehaviour
             // Debug.Log("TRIED: _grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall))");
                 _timeLastWallJumped = Time.time;
                 _currentMovementLerpSpeed = _wallJumpMovementLerp;
-                ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce : -_jumpForce, _jumpForce)); // Wall jump
+                ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce/2 : -_jumpForce/2, _jumpForce/2)); // Wall jump
             }
             else if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime))
             {
             // Debug.Log("TRIED 2 : _hasjumped):" +_hasJumped);
+                if(_hasJumped == false){
+                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce)); // Ground jump
+                }
+            }
+        }
+        else if(Input.GetButton("Jump_W"))
+        {
+            if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime)){
                 if(_hasJumped == false){
                     ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce)); // Ground jump
                 }
@@ -201,6 +242,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleDashing() 
     {
+        // if (_grabbing) return;
         if (Input.GetButton("Dash") && !_hasDashed) {
             _dashDir = new Vector3(_horizontalRawDirection, _verticalRawDirection).normalized;
             if (_dashDir == Vector3.zero) _dashDir = _facingLeft ? Vector2.left : Vector2.right;
@@ -224,7 +266,8 @@ public class PlayerMovement : MonoBehaviour
         }
     }
     
-    private void HandleWallSlide() {
+    private void HandleWallSlide() 
+    {
         var sliding = _pushingLeftWall || _pushingRightWall;
 
         if (sliding && !_wallSliding) {
@@ -240,7 +283,8 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    private void HandleWallGrab() {
+    private void HandleWallGrab() 
+    {
         // I added wallJumpLock but I honestly can't remember why and I'm too scared to remove it...
         var grabbing = (_isAgainstLeftWall || _isAgainstRightWall) && Time.time > _timeLastWallJumped + _wallJumpLock;
         // Debug.log("LEFT:"+_isAgainstLeftWall+ "RIGHT:" + _isAgainstRightWall)

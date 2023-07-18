@@ -793,6 +793,9 @@ MonoBehaviour:
   _groundLayer:
     serializedVersion: 2
     m_Bits: 64
+  _wallLayer:
+    serializedVersion: 2
+    m_Bits: 128
   _jumpForce: 20
   _fallMultiplier: 8
   _jumpVelocityFalloff: 8
@@ -802,9 +805,9 @@ MonoBehaviour:
   _jumpLaunchPoof: {fileID: 0}
   _grounderOffset: -1
   _grounderRadius: 0.2
-  _wallCheckOffset: 0.5
-  _wallCheckRadius: 0.05
-  _slideSpeed: 1
+  _wallCheckOffset: 0.3
+  _wallCheckRadius: 0.1
+  _slideSpeed: 10
   _grabbing: 0
   _dashSpeed: 15
   _dashLength: 0.2
