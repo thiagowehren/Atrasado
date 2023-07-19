@@ -10,7 +10,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement Variables")]
     [SerializeField] private float _movementAcceleration = 2f;
-    [SerializeField] private float _walkSpeed = 7f;
+    [SerializeField] private float _walkSpeed = 6f;
     [SerializeField] private float _currentMovementLerpSpeed = 100f;
     private bool _changingDirection => (_rb.velocity.x > 0f && _horizontalDirection < 0f) || (_rb.velocity.x < 0f && _horizontalDirection > 0f);
 
@@ -50,15 +50,15 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float _slideSpeed = 1;
     [SerializeField] private bool _wallSliding;
 
-    [Header("Wall Grab")] [SerializeField]
-    private bool _grabbing;
+    [Header("Wall Grab")] 
+    [SerializeField] private bool _grabbing;
 
     [Header("Animation Variables")]
     private Animator _anim;
 
     [Header("Dash Variables")] 
-    [SerializeField] private float _dashSpeed = 15;
-    [SerializeField] private float _dashLength = 0.2f;
+    [SerializeField] private float _dashSpeed = 12.5f;
+    [SerializeField] private float _dashLength = 0.3f;
     [SerializeField] private ParticleSystem _dashParticles;
     [SerializeField] private Transform _dashRing;
     [SerializeField] private ParticleSystem _dashVisual;
@@ -101,7 +101,6 @@ public class PlayerMovement : MonoBehaviour
         
         if (Input.GetButton("Jump") || (Input.GetButton("Jump_W") && !_grabbing))
         {
-            // Debug.Log("buffering");
             _jumpBufferCounter = _jumpBufferLength;
         }
         else
@@ -112,13 +111,13 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        MoveCharacter();
-        Flip();
         HandleDashing();   
         HandleGrounding();
+        HandleWallSlide();
         HandleWallGrab();
-        // HandleWallSlide();
         HandleJumping();
+        MoveCharacter();
+        Flip();
 
         if (!isGrounded())
         {
@@ -138,10 +137,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        // Gizmos.color = Color.red;
-        // Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(-_wallCheckOffset, 0), _wallCheckRadius);
-        // Gizmos.DrawWireSphere((Vector2)transform.position + new Vector2(_wallCheckOffset, 0), _wallCheckRadius);
-
         // Draw raycast for left wall
         Gizmos.color = Color.red;
         Vector2 originLeft = transform.position;
@@ -159,7 +154,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleGrounding() 
     {
-        // Grounder
         var grounded = Physics.OverlapSphereNonAlloc(transform.position + new Vector3(0, _grounderOffset), _grounderRadius, _ground, _groundMask) > 0;
         if(grounded)
             Debug.Log("grounded : "+grounded);
@@ -168,22 +162,14 @@ public class PlayerMovement : MonoBehaviour
             _hasDashed = false;
             _hasJumped = false;
             _currentMovementLerpSpeed = 100;
-            // _anim.SetBool("Grounded", true);
-            // transform.SetParent(_ground[0].transform);
         }
         else if (isGrounded() == false) {
             IsGrounded = false;
             _timeLeftGrounded = Time.time;
-            // _anim.SetBool("Grounded", false);
             if(_isAgainstRightWall || _isAgainstLeftWall){
                 _dashing = false;
             }
         }
-        // Wall detection
-        // var leftWallHits = Physics2D.OverlapCircleAll(transform.position + new Vector3(-_wallCheckOffset, 0), _wallCheckRadius, _groundMask);
-        // var rightWallHits = Physics2D.OverlapCircleAll(transform.position + new Vector3(_wallCheckOffset, 0), _wallCheckRadius, _groundMask);
-        // if(IsWallToLeft() || IsWallToRight())
-        //     Debug.Log("wall hit:" + IsWallToLeft() + " " +  IsWallToRight());
         _isAgainstLeftWall = IsWallToLeft();
         _isAgainstRightWall = IsWallToRight();
         _pushingLeftWall = _isAgainstLeftWall && _horizontalDirection < 0;
@@ -204,21 +190,20 @@ public class PlayerMovement : MonoBehaviour
     
     private void HandleJumping()
     {
-        if (_dashing) return; //11
+        if (_dashing) return;
         if (Input.GetButton("Jump"))
         {
             if (_grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall)))
             {
-            // Debug.Log("TRIED: _grabbing || (!isGrounded() && (_isAgainstLeftWall || _isAgainstRightWall))");
+            
                 _timeLastWallJumped = Time.time;
                 _currentMovementLerpSpeed = _wallJumpMovementLerp;
-                ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce/2 : -_jumpForce/2, _jumpForce/2)); // Wall jump
+                ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce/2 : -_jumpForce/2, _jumpForce/2));
             }
             else if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime))
             {
-            // Debug.Log("TRIED 2 : _hasjumped):" +_hasJumped);
                 if(_hasJumped == false){
-                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce)); // Ground jump
+                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce));
                 }
             }
         }
@@ -226,7 +211,7 @@ public class PlayerMovement : MonoBehaviour
         {
             if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime)){
                 if(_hasJumped == false){
-                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce)); // Ground jump
+                    ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce));
                 }
             }
         }
@@ -234,18 +219,15 @@ public class PlayerMovement : MonoBehaviour
         void ExecuteJump(Vector3 dir)
         {
             _rb.velocity = dir;
-            // _anim.SetTrigger("Jump");
             _hasJumped = true;
         }
 
-        // Fall faster and allow small jumps. _jumpVelocityFalloff is the point at which we start adding extra gravity. Using 0 causes floating
         if (_rb.velocity.y < _jumpVelocityFalloff || (_rb.velocity.y > 0 && !Input.GetKey(KeyCode.C)))
             _rb.velocity += _fallMultiplier * Physics.gravity.y * Vector2.up * Time.deltaTime;
     }
 
     private void HandleDashing() 
     {
-        // if (_grabbing) return;
         if (Input.GetButton("Dash") && !_hasDashed) {
             _dashDir = new Vector3(_horizontalRawDirection, _verticalRawDirection).normalized;
             if (_dashDir == Vector3.zero) _dashDir = _facingLeft ? Vector2.left : Vector2.right;
@@ -274,23 +256,20 @@ public class PlayerMovement : MonoBehaviour
         var sliding = _pushingLeftWall || _pushingRightWall;
 
         if (sliding && !_wallSliding) {
-            transform.SetParent(_pushingLeftWall ? _leftWall[0].transform : _rightWall[0].transform);
             _wallSliding = true;
 
             // Don't add sliding until actually falling or it'll prevent jumping against a wall
             if (_rb.velocity.y < 0) _rb.velocity = new Vector3(0, -_slideSpeed);
         }
         else if (!sliding && _wallSliding && !_grabbing) {
-            transform.SetParent(null);
             _wallSliding = false;
         }
     }
 
     private void HandleWallGrab() 
     {
-        // I added wallJumpLock but I honestly can't remember why and I'm too scared to remove it...
         var grabbing = (_isAgainstLeftWall || _isAgainstRightWall) && Time.time > _timeLastWallJumped + _wallJumpLock;
-        // Debug.log("LEFT:"+_isAgainstLeftWall+ "RIGHT:" + _isAgainstRightWall)
+
         _rb.gravityScale = !_grabbing && !isGrounded() ? 1f : 0f;
         if (grabbing && !_grabbing) {
             _grabbing = true;
@@ -313,7 +292,6 @@ public class PlayerMovement : MonoBehaviour
 
     private void MoveCharacter()
     {
-        // Slowly release control after wall jump
         _currentMovementLerpSpeed = Mathf.MoveTowards(_currentMovementLerpSpeed, 100, _wallJumpMovementLerp * Time.deltaTime);
 
         if (_dashing) return;
