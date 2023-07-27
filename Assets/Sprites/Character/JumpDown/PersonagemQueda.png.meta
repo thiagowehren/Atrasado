@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 1b32f3e0598108444ab2a7c856f7cf5d
+guid: 2895f7b267063d147ade9d204026737e
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -105,48 +105,6 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: PersonagemPulo_0
-      rect:
-        serializedVersion: 2
-        x: 9
-        y: 0
-        width: 14
-        height: 27
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: aab75cfcf1b42664985250ad7eff537a
-      internalID: -1719094857
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PersonagemPulo_1
-      rect:
-        serializedVersion: 2
-        x: 43
-        y: 0
-        width: 15
-        height: 21
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 41bdee665cdd5ff49942eee981af0485
-      internalID: -378463012
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PersonagemPulo_2
       rect:
         serializedVersion: 2
@@ -247,69 +205,6 @@ TextureImporter:
       bones: []
       spriteID: d3e0960e163ec1a4884be884f3e2a225
       internalID: -1173821969
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PersonagemPulo_7
-      rect:
-        serializedVersion: 2
-        x: 230
-        y: 0
-        width: 20
-        height: 17
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 36b5540fdb43e2b4aa74594ed58b94ec
-      internalID: -310138331
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PersonagemPulo_8
-      rect:
-        serializedVersion: 2
-        x: 258
-        y: 0
-        width: 27
-        height: 21
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 7dcc15c7dd5768c43a222a7add0ac0be
-      internalID: -156194908
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PersonagemPulo_9
-      rect:
-        serializedVersion: 2
-        x: 288
-        y: 0
-        width: 31
-        height: 27
-      alignment: 7
-      pivot: {x: 0.5, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: ac288078cdfe8ff4fa4b4cb0c8fb5499
-      internalID: 1449658521
       vertices: []
       indices: 
       edges: []

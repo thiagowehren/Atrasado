@@ -98,19 +98,12 @@ public class PlayerMovement : MonoBehaviour
         _verticalDirection = GetInput().y;
         _horizontalRawDirection = (int) Input.GetAxisRaw("Horizontal");
         _verticalRawDirection = (int) Input.GetAxisRaw("Vertical");
-        
-        if (Input.GetButton("Jump") || (Input.GetButton("Jump_W") && !_grabbing))
-        {
-            _jumpBufferCounter = _jumpBufferLength;
-        }
-        else
-        {
-            _jumpBufferCounter -= Time.deltaTime;
-        }
+       
     }
 
     private void FixedUpdate()
-    {
+    { 
+        HandleCoyotte();
         HandleDashing();   
         HandleGrounding();
         HandleWallSlide();
@@ -122,6 +115,9 @@ public class PlayerMovement : MonoBehaviour
         if (!isGrounded())
         {
             _hangTimeCounter -= Time.deltaTime;
+            // _anim.SetBool("isJumpingUp", _rb.velocity.y > 0 && !isGrounded() && !_grabbing);
+            if(_rb.velocity.y > 0 && !isGrounded() && !_grabbing && _hasJumped) _anim.SetTrigger("isJumpingUpTrigger");
+            _anim.SetBool("isJumpingDown", _rb.velocity.y < 0 && !isGrounded() && !_grabbing);
         }
         else
         {
@@ -158,6 +154,10 @@ public class PlayerMovement : MonoBehaviour
         if(grounded)
             Debug.Log("grounded : "+grounded);
         if (isGrounded() == true) {
+            if(_anim.GetBool("isJumpingDown")){
+                _anim.SetBool("isJumpingDown", false);
+                _anim.SetTrigger("isJumpingLandTrigger");
+            }
             IsGrounded = true;
             _hasDashed = false;
             _hasJumped = false;
@@ -188,6 +188,18 @@ public class PlayerMovement : MonoBehaviour
         return raycastHit.collider != null;
     }
     
+    private void HandleCoyotte()
+    {
+        if (Input.GetButton("Jump") || (Input.GetButton("Jump_W") && !_grabbing))
+        {
+            _jumpBufferCounter = _jumpBufferLength;
+        }
+        else
+        {
+            _jumpBufferCounter -= Time.deltaTime;
+        }
+    }
+
     private void HandleJumping()
     {
         if (_dashing) return;
@@ -200,7 +212,7 @@ public class PlayerMovement : MonoBehaviour
                 _currentMovementLerpSpeed = _wallJumpMovementLerp;
                 ExecuteJump(new Vector2(_isAgainstLeftWall ? _jumpForce/2 : -_jumpForce/2, _jumpForce/2));
             }
-            else if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime))
+            else if (isGrounded() || _canJump)
             {
                 if(_hasJumped == false){
                     ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce));
@@ -209,7 +221,7 @@ public class PlayerMovement : MonoBehaviour
         }
         else if(Input.GetButton("Jump_W"))
         {
-            if (isGrounded() || (Time.time < _timeLeftGrounded + _coyoteTime)){
+            if (isGrounded() || _canJump){
                 if(_hasJumped == false){
                     ExecuteJump(new Vector2(_rb.velocity.x, _jumpForce));
                 }
@@ -220,6 +232,7 @@ public class PlayerMovement : MonoBehaviour
         {
             _rb.velocity = dir;
             _hasJumped = true;
+            _anim.SetTrigger("isJumpingUpTrigger");
         }
 
         if (_rb.velocity.y < _jumpVelocityFalloff || (_rb.velocity.y > 0 && !Input.GetKey(KeyCode.C)))
@@ -316,15 +329,7 @@ public class PlayerMovement : MonoBehaviour
         var idealVel = new Vector3(_horizontalDirection * _walkSpeed, _rb.velocity.y);
         _rb.velocity = Vector3.MoveTowards(_rb.velocity, idealVel, _currentMovementLerpSpeed * Time.deltaTime);
 
-        // _anim.SetBool("isRunning", _horizontalRawDirection != 0 && isGrounded());
-    }
-
-    private void Fall()
-    {
-        // Fall faster and allow small jumps. _jumpVelocityFalloff is the point at which we start adding extra gravity. Using 0 causes floating
-        if (_rb.velocity.y < _jumpVelocityFalloff || _rb.velocity.y > 0){
-            _rb.velocity += _fallMultiplier * Physics.gravity.y * Vector2.up * Time.deltaTime;
-        }
+        _anim.SetBool("isRunning", _horizontalRawDirection != 0 && isGrounded());
     }
 
     private void Flip()
@@ -335,11 +340,8 @@ public class PlayerMovement : MonoBehaviour
             transform.localScale = new Vector3(-objectScale.x, objectScale.y, objectScale.z);
     }
 
-    private void Jump()
+    private bool TouchingWalls()
     {
-        _rb.velocity = new Vector2(_rb.velocity.x, 0f);
-        _rb.AddForce(Vector2.up * _jumpForce, ForceMode2D.Impulse);
-        _hangTimeCounter = 0f;
-        _jumpBufferCounter = 0f;
+        return IsWallToLeft() && IsWallToRight() ? true : false;
     }
 }
